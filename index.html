@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Decentralized Book Exchange (static)</title>
+  <style>
+    /* Simple, clean styling (not Tailwind) */
+    :root{
+      --bg:#fff7ed;
+      --card:#fff;
+      --muted:#6b7280;
+      --accent:#b45309;
+      --shadow: 0 6px 18px rgba(15,23,42,0.08);
+      --radius:12px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:#111;}
+    .container{max-width:1100px;margin:0 auto;padding:20px;}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#fb923c,#f97316);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+    h1{font-size:18px;margin:0}
+    .btn{
+      background:var(--accent);color:white;border:none;padding:8px 14px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow);
+    }
+    .filterbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+    .input, select{padding:10px 12px;border-radius:10px;border:1px solid #e6e0d9;background:white;min-width:180px}
+    main.grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+    .list{display:grid;gap:12px}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px;display:flex;gap:12px;align-items:flex-start}
+    .thumb{width:78px;height:110px;background:#f3f4f6;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:12px}
+    .meta{flex:1}
+    .title{font-weight:700;margin:0;font-size:15px}
+    .sub{color:var(--muted);font-size:13px;margin-top:6px}
+    .muted{color:var(--muted);font-size:13px}
+    .small{font-size:12px;color:var(--muted)}
+    .actions{display:flex;gap:8px;margin-top:10px}
+    .link{background:#fff;border:1px solid #eee;padding:6px 8px;border-radius:8px;cursor:pointer}
+    aside.sidebar{background:var(--card);border-radius:var(--radius);padding:12px;height:fit-content;box-shadow:var(--shadow)}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:40}
+    .modal{background:var(--card);padding:18px;border-radius:12px;max-width:720px;width:95%;box-shadow:var(--shadow);max-height:90vh;overflow:auto}
+    .form-row{display:flex;gap:10px;margin-bottom:10px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    textarea{min-height:80px;padding:10px;border-radius:8px;border:1px solid #eee;}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .distance{font-size:12px;color:var(--muted);margin-top:8px}
+    footer{margin-top:28px;color:var(--muted);font-size:13px;text-align:center}
+    @media (max-width:900px){
+      main.grid{grid-template-columns:1fr}
+      aside.sidebar{order:2}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo">B</div>
+        <div>
+          <h1>Decentralized Book Exchange</h1>
+          <div class="small">Find, swap, or give away books near you</div>
+        </div>
+      </div>
+      <div>
+        <button id="btnListBook" class="btn">List a New Book</button>
+      </div>
+    </header>
+
+    <div class="filterbar">
+      <input id="search" class="input" placeholder="Search by title or author..." />
+      <select id="exchangeType" class="input">
+        <option value="All">All</option>
+        <option value="Swap">Swap</option>
+        <option value="GiveAway">GiveAway</option>
+        <option value="Sell">Sell</option>
+      </select>
+
+      <div id="locationStatus" class="small" style="margin-left:auto">Getting location...</div>
+    </div>
+
+    <main class="grid">
+      <section>
+        <div id="booksList" class="list"></div>
+      </section>
+
+      <aside class="sidebar">
+        <h3 style="margin:0 0 10px 0">Newly Listed</h3>
+        <div id="sidebarList"></div>
+      </aside>
+    </main>
+
+    <footer>Prototype static conversion — functionality implemented in vanilla JS</footer>
+  </div>
+
+  <!-- Modal containers -->
+  <div id="modalContainer" style="display:none"></div>
+
+  <script>
+    // Mock books (simple sample set)
+    const MOCK_BOOKS = [
+      {
+        id: '1',
+        title: 'The Alchemist',
+        author: 'Paulo Coelho',
+        exchangeType: 'Swap',
+        status: 'Available',
+        description: 'A fable about following your dream.',
+        owner: { id: 'u1', name: 'Ravi', rating: 4.7, location: { lat: 12.9716, lng: 77.5946 } },
+      },
+      {
+        id: '2',
+        title: 'Clean Code',
+        author: 'Robert C. Martin',
+        exchangeType: 'Sell',
+        status: 'Available',
+        description: 'A handbook of agile software craftsmanship.',
+        owner: { id: 'u2', name: 'Meena', rating: 4.9, location: { lat: 13.0827, lng: 80.2707 } },
+      },
+      {
+        id: '3',
+        title: 'Pride and Prejudice',
+        author: 'Jane Austen',
+        exchangeType: 'GiveAway',
+        status: 'Available',
+        description: 'A classic novel of manners.',
+        owner: { id: 'u3', name: 'Arjun', rating: 4.6, location: { lat: 28.7041, lng: 77.1025 } },
+      },
+    ];
+
+    // App state
+    let books = [...MOCK_BOOKS];
+    let userLocation = null; // {lat,lng}
+    const defaultLocation = { lat: 34.0522, lng: -118.2437 }; // fallback
+
+    // DOM refs
+    const booksListEl = document.getElementById('booksList');
+    const sidebarListEl = document.getElementById('sidebarList');
+    const searchEl = document.getElementById('search');
+    const exchangeTypeEl = document.getElementById('exchangeType');
+    const modalContainer = document.getElementById('modalContainer');
+    const locationStatusEl = document.getElementById('locationStatus');
+
+    // Helpers
+    function haversine(lat1, lon1, lat2, lon2) {
+      function toRad(x){ return x*Math.PI/180; }
+      const R = 6371; // km
+      const dLat = toRad(lat2-lat1);
+      const dLon = toRad(lon2-lon1);
+      const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)*Math.sin(dLon/2);
+      const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R*c;
+    }
+
+    function formatDistance(distKm){
+      if (distKm < 1) return `${Math.round(distKm*1000)} m`;
+      return `${distKm.toFixed(1)} km`;
+    }
+
+    // Render functions
+    function renderBooks() {
+      const q = searchEl.value.trim().toLowerCase();
+      const ex = exchangeTypeEl.value;
+      const filtered = books.filter(b => {
+        if (ex !== 'All' && b.exchangeType !== ex) return false;
+        if (!q) return true;
+        return b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q);
+      });
+
+      booksListEl.innerHTML = '';
+      if (filtered.length === 0) {
+        booksListEl.innerHTML = '<div class="small" style="padding:12px">No books found.</div>';
+        sidebarListEl.innerHTML = '';
+        return;
+      }
+
+      filtered.forEach(book => {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const thumb = document.createElement('div');
+        thumb.className = 'thumb';
+        thumb.textContent = book.title.split(' ').slice(0,2).map(t=>t[0]).join('').toUpperCase();
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+
+        const title = document.createElement('div');
+        title.className = 'title';
+        title.textContent = book.title;
+
+        const sub = document.createElement('div');
+        sub.className = 'sub';
+        sub.textContent = `${book.author} • ${book.exchangeType} • ${book.status}`;
+
+        const owner = document.createElement('div');
+        owner.className = 'muted';
+        owner.textContent = `Owner: ${book.owner.name} · Rating: ${book.owner.rating}`;
+
+        meta.appendChild(title);
+        meta.appendChild(sub);
+        meta.appendChild(owner);
+
+        // distance if available
+        if (userLocation && book.owner && book.owner.location) {
+          const d = haversine(userLocation.lat, userLocation.lng, book.owner.location.lat, book.owner.location.lng);
+          const distEl = document.createElement('div');
+          distEl.className = 'distance';
+          distEl.textContent = `Approx. ${formatDistance(d)}`;
+          meta.appendChild(distEl);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'link';
+        viewBtn.textContent = 'View details';
+        viewBtn.onclick = () => openBookDetails(book);
+        actions.appendChild(viewBtn);
+
+        meta.appendChild(actions);
+
+        card.appendChild(thumb);
+        card.appendChild(meta);
+        booksListEl.appendChild(card);
+      });
+
+      // Sidebar: show top 3 newest
+      sidebarListEl.innerHTML = '';
+      books.slice(0,3).forEach(b => {
+        const el = document.createElement('div');
+        el.style.padding = '8px 0';
+        el.innerHTML = `<strong style="display:block">${b.title}</strong><div class="small">${b.author} — ${b.exchangeType}</div>`;
+        sidebarListEl.appendChild(el);
+      });
+    }
+
+    function openModal(html) {
+      modalContainer.style.display = 'block';
+      modalContainer.innerHTML = `
+        <div class="modal-backdrop" id="backdrop">
+          <div class="modal">
+            ${html}
+          </div>
+        </div>
+      `;
+      document.getElementById('backdrop').addEventListener('click', (e) => {
+        if (e.target.id === 'backdrop') closeModal();
+      });
+    }
+    function closeModal(){ modalContainer.style.display = 'none'; modalContainer.innerHTML = ''; }
+
+    // Add book
+    function openListBookForm(){
+      const formHtml = `
+        <h2 style="margin-top:0">List a New Book</h2>
+        <div>
+          <div class="form-row">
+            <div style="flex:1">
+              <label>Title</label>
+              <input id="inputTitle" class="input" />
+            </div>
+            <div style="width:180px">
+              <label>Exchange Type</label>
+              <select id="inputExchange" class="input">
+                <option>Swap</option>
+                <option>GiveAway</option>
+                <option>Sell</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div style="flex:1">
+              <label>Author</label>
+              <input id="inputAuthor" class="input" />
+            </div>
+            <div style="width:120px">
+              <label>Rating</label>
+              <input id="inputRating" class="input" type="number" min="0" max="5" step="0.1" value="5.0" />
+            </div>
+          </div>
+
+          <div>
+            <label>Description</label>
+            <textarea id="inputDescription"></textarea>
+          </div>
+
+          <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+            <button id="cancelAdd" class="link">Cancel</button>
+            <button id="submitAdd" class="btn">Add Book</button>
+          </div>
+        </div>
+      `;
+      openModal(formHtml);
+
+      document.getElementById('cancelAdd').onclick = closeModal;
+      document.getElementById('submitAdd').onclick = () => {
+        const title = document.getElementById('inputTitle').value.trim();
+        const author = document.getElementById('inputAuthor').value.trim();
+        const exchangeType = document.getElementById('inputExchange').value;
+        const rating = parseFloat(document.getElementById('inputRating').value) || 5.0;
+        const description = document.getElementById('inputDescription').value.trim();
+
+        if (!title || !author) {
+          alert('Please enter title and author.');
+          return;
+        }
+
+        const newBook = {
+          id: String(Date.now()),
+          title, author, exchangeType,
+          status: 'Available',
+          description,
+          owner: {
+            id: 'currentUser',
+            name: 'You',
+            rating,
+            location: userLocation || defaultLocation
+          }
+        };
+
+        books = [newBook, ...books];
+        renderBooks();
+        closeModal();
+      };
+    }
+
+    // Book details
+    function openBookDetails(book){
+      const ownerLocText = book.owner && book.owner.location ? 
+        `Location: ${book.owner.location.lat.toFixed(3)}, ${book.owner.location.lng.toFixed(3)}` : 'Location: unknown';
+
+      const distanceText = (userLocation && book.owner && book.owner.location) ? 
+        `Distance: ${formatDistance(haversine(userLocation.lat, userLocation.lng, book.owner.location.lat, book.owner.location.lng))}` : '';
+
+      const html = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h2 style="margin:0">${book.title}</h2>
+          <button id="closeDetail" class="link">Close</button>
+        </div>
+        <div class="small" style="margin-top:8px">${book.author} • ${book.exchangeType}</div>
+        <div style="margin-top:12px">${book.description || '<em>No description provided.</em>'}</div>
+        <div style="margin-top:12px">
+          <strong>Owner:</strong> ${book.owner.name} (${book.owner.rating})
+          <div class="small">${ownerLocText} ${distanceText ? ' · ' + distanceText : ''}</div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+          <button id="contactOwner" class="btn">Contact Owner</button>
+        </div>
+      `;
+      openModal(html);
+
+      document.getElementById('closeDetail').onclick = closeModal;
+      document.getElementById('contactOwner').onclick = () => {
+        alert('Pretend this opens a chat / contact flow with ' + book.owner.name);
+      };
+    }
+
+    // Geolocation
+    function requestLocation(){
+      if (!navigator.geolocation){
+        userLocation = defaultLocation;
+        locationStatusEl.textContent = 'Location not available (using default)';
+        renderBooks();
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          locationStatusEl.textContent = `Location set (${userLocation.lat.toFixed(3)}, ${userLocation.lng.toFixed(3)})`;
+          renderBooks();
+        },
+        err => {
+          console.warn('Geolocation error', err);
+          userLocation = defaultLocation;
+          locationStatusEl.textContent = 'Location blocked — using default';
+          renderBooks();
+        },
+        { timeout: 8000 }
+      );
+    }
+
+    // Wire up UI
+    document.getElementById('btnListBook').addEventListener('click', openListBookForm);
+    searchEl.addEventListener('input', () => renderBooks());
+    exchangeTypeEl.addEventListener('change', () => renderBooks());
+
+    // initial mount
+    requestLocation();
+    renderBooks();
+  </script>
+</body>
+</html>
