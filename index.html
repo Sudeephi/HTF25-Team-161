@@ -96,299 +96,365 @@
   <!-- Modal containers -->
   <div id="modalContainer" style="display:none"></div>
 
-  <script>
-    // Mock books (simple sample set)
-    const MOCK_BOOKS = [
-      {
-        id: '1',
-        title: 'The Alchemist',
-        author: 'Paulo Coelho',
-        exchangeType: 'Swap',
-        status: 'Available',
-        description: 'A fable about following your dream.',
-        owner: { id: 'u1', name: 'Ravi', rating: 4.7, location: { lat: 12.9716, lng: 77.5946 } },
-      },
-      {
-        id: '2',
-        title: 'Clean Code',
-        author: 'Robert C. Martin',
-        exchangeType: 'Sell',
-        status: 'Available',
-        description: 'A handbook of agile software craftsmanship.',
-        owner: { id: 'u2', name: 'Meena', rating: 4.9, location: { lat: 13.0827, lng: 80.2707 } },
-      },
-      {
-        id: '3',
-        title: 'Pride and Prejudice',
-        author: 'Jane Austen',
-        exchangeType: 'GiveAway',
-        status: 'Available',
-        description: 'A classic novel of manners.',
-        owner: { id: 'u3', name: 'Arjun', rating: 4.6, location: { lat: 28.7041, lng: 77.1025 } },
-      },
-    ];
+  <script type="module">
+    // Import Firebase SDK modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { getFirestore, collection, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-    // App state
-    let books = [...MOCK_BOOKS];
-    let userLocation = null; // {lat,lng}
-    const defaultLocation = { lat: 34.0522, lng: -118.2437 }; // fallback
+    // Firebase config
+    const firebaseConfig = {
+        apiKey: "AIzaSyBEDZm3jo8z6hhGLh4OgoFHPXDr3u9RVK8",
+        authDomain: "book-exchange-network-61996.firebaseapp.com",
+        projectId: "book-exchange-network-61996",
+        storageBucket: "book-exchange-network-61996.firebasestorage.app",
+        messagingSenderId: "1059116333",
+        appId: "1:1059116333:web:b002efecda6f899d562fa4"
+    };
 
-    // DOM refs
-    const booksListEl = document.getElementById('booksList');
-    const sidebarListEl = document.getElementById('sidebarList');
-    const searchEl = document.getElementById('search');
-    const exchangeTypeEl = document.getElementById('exchangeType');
-    const modalContainer = document.getElementById('modalContainer');
-    const locationStatusEl = document.getElementById('locationStatus');
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    console.log("Firebase connected!");
 
-    // Helpers
-    function haversine(lat1, lon1, lat2, lon2) {
-      function toRad(x){ return x*Math.PI/180; }
-      const R = 6371; // km
-      const dLat = toRad(lat2-lat1);
-      const dLon = toRad(lon2-lon1);
-      const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)*Math.sin(dLon/2);
-      const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R*c;
-    }
+    // Mock books (simple sample set)
+    const MOCK_BOOKS = [
+        {
+            id: '1',
+            title: 'The Alchemist',
+            author: 'Paulo Coelho',
+            exchangeType: 'Swap',
+            status: 'Available',
+            description: 'A fable about following your dream.',
+            owner: { id: 'u1', name: 'Ravi', rating: 4.7, location: { lat: 12.9716, lng: 77.5946 } },
+        },
+        {
+            id: '2',
+            title: 'Clean Code',
+            author: 'Robert C. Martin',
+            exchangeType: 'Sell',
+            status: 'Available',
+            description: 'A handbook of agile software craftsmanship.',
+            owner: { id: 'u2', name: 'Meena', rating: 4.9, location: { lat: 13.0827, lng: 80.2707 } },
+        },
+        {
+            id: '3',
+            title: 'Pride and Prejudice',
+            author: 'Jane Austen',
+            exchangeType: 'GiveAway',
+            status: 'Available',
+            description: 'A classic novel of manners.',
+            owner: { id: 'u3', name: 'Arjun', rating: 4.6, location: { lat: 28.7041, lng: 77.1025 } },
+        }
+    ];
 
-    function formatDistance(distKm){
-      if (distKm < 1) return `${Math.round(distKm*1000)} m`;
-      return `${distKm.toFixed(1)} km`;
-    }
+    // Global state
+    let books = [];
+    let userLocation = null;
+    const defaultLocation = { lat: 34.0522, lng: -118.2437 };
 
-    // Render functions
-    function renderBooks() {
-      const q = searchEl.value.trim().toLowerCase();
-      const ex = exchangeTypeEl.value;
-      const filtered = books.filter(b => {
-        if (ex !== 'All' && b.exchangeType !== ex) return false;
-        if (!q) return true;
-        return b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q);
-      });
+    // DOM refs
+    const booksListEl = document.getElementById('booksList');
+    const sidebarListEl = document.getElementById('sidebarList');
+    const searchEl = document.getElementById('search');
+    const exchangeTypeEl = document.getElementById('exchangeType');
+    const modalContainer = document.getElementById('modalContainer');
+    const locationStatusEl = document.getElementById('locationStatus');
 
-      booksListEl.innerHTML = '';
-      if (filtered.length === 0) {
-        booksListEl.innerHTML = '<div class="small" style="padding:12px">No books found.</div>';
-        sidebarListEl.innerHTML = '';
-        return;
-      }
+    // Helpers
+    function haversine(lat1, lon1, lat2, lon2) {
+        function toRad(x) { return x * Math.PI / 180; }
+        const R = 6371; // km
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+            + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2))
+            * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
 
-      filtered.forEach(book => {
-        const card = document.createElement('div');
-        card.className = 'card';
+    function formatDistance(distKm) {
+        if (distKm < 1) return `${Math.round(distKm * 1000)} m`;
+        return `${distKm.toFixed(1)} km`;
+    }
 
-        const thumb = document.createElement('div');
-        thumb.className = 'thumb';
-        thumb.textContent = book.title.split(' ').slice(0,2).map(t=>t[0]).join('').toUpperCase();
+    // Render functions
+    function renderBooks() {
+        const q = searchEl.value.trim().toLowerCase();
+        const ex = exchangeTypeEl.value;
+        const filtered = books.filter(b => {
+            if (ex !== 'All' && b.exchangeType !== ex) return false;
+            if (!q) return true;
+            return b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q);
+        });
 
-        const meta = document.createElement('div');
-        meta.className = 'meta';
+        booksListEl.innerHTML = '';
+        if (filtered.length === 0) {
+            booksListEl.innerHTML = '<div class="small" style="padding:12px">No books found.</div>';
+            sidebarListEl.innerHTML = '';
+            return;
+        }
 
-        const title = document.createElement('div');
-        title.className = 'title';
-        title.textContent = book.title;
+        filtered.forEach(book => {
+            const card = document.createElement('div');
+            card.className = 'card';
 
-        const sub = document.createElement('div');
-        sub.className = 'sub';
-        sub.textContent = `${book.author} • ${book.exchangeType} • ${book.status}`;
+            const thumb = document.createElement('div');
+            thumb.className = 'thumb';
+            thumb.textContent = book.title.split(' ').slice(0, 2).map(t => t[0]).join('').toUpperCase();
 
-        const owner = document.createElement('div');
-        owner.className = 'muted';
-        owner.textContent = `Owner: ${book.owner.name} · Rating: ${book.owner.rating}`;
+            const meta = document.createElement('div');
+            meta.className = 'meta';
 
-        meta.appendChild(title);
-        meta.appendChild(sub);
-        meta.appendChild(owner);
+            const title = document.createElement('div');
+            title.className = 'title';
+            title.textContent = book.title;
 
-        // distance if available
-        if (userLocation && book.owner && book.owner.location) {
-          const d = haversine(userLocation.lat, userLocation.lng, book.owner.location.lat, book.owner.location.lng);
-          const distEl = document.createElement('div');
-          distEl.className = 'distance';
-          distEl.textContent = `Approx. ${formatDistance(d)}`;
-          meta.appendChild(distEl);
-        }
+            const sub = document.createElement('div');
+            sub.className = 'sub';
+            sub.textContent = `${book.author} • ${book.exchangeType} • ${book.status}`;
 
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        const viewBtn = document.createElement('button');
-        viewBtn.className = 'link';
-        viewBtn.textContent = 'View details';
-        viewBtn.onclick = () => openBookDetails(book);
-        actions.appendChild(viewBtn);
+            const owner = document.createElement('div');
+            owner.className = 'muted';
+            owner.textContent = `Owner: ${book.owner.name} · Rating: ${book.owner.rating}`;
 
-        meta.appendChild(actions);
+            meta.appendChild(title);
+            meta.appendChild(sub);
+            meta.appendChild(owner);
 
-        card.appendChild(thumb);
-        card.appendChild(meta);
-        booksListEl.appendChild(card);
-      });
+            // distance if available
+            if (userLocation && book.owner && book.owner.location) {
+                const d = haversine(userLocation.lat, userLocation.lng,
+                    book.owner.location.lat, book.owner.location.lng);
+                const distEl = document.createElement('div');
+                distEl.className = 'distance';
+                distEl.textContent = `Approx. ${formatDistance(d)}`;
+                meta.appendChild(distEl);
+            }
 
-      // Sidebar: show top 3 newest
-      sidebarListEl.innerHTML = '';
-      books.slice(0,3).forEach(b => {
-        const el = document.createElement('div');
-        el.style.padding = '8px 0';
-        el.innerHTML = `<strong style="display:block">${b.title}</strong><div class="small">${b.author} — ${b.exchangeType}</div>`;
-        sidebarListEl.appendChild(el);
-      });
-    }
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+            const viewBtn = document.createElement('button');
+            viewBtn.className = 'link';
+            viewBtn.textContent = 'View details';
+            viewBtn.onclick = () => openBookDetails(book);
+            actions.appendChild(viewBtn);
 
-    function openModal(html) {
-      modalContainer.style.display = 'block';
-      modalContainer.innerHTML = `
-        <div class="modal-backdrop" id="backdrop">
-          <div class="modal">
-            ${html}
-          </div>
-        </div>
-      `;
-      document.getElementById('backdrop').addEventListener('click', (e) => {
-        if (e.target.id === 'backdrop') closeModal();
-      });
-    }
-    function closeModal(){ modalContainer.style.display = 'none'; modalContainer.innerHTML = ''; }
+            meta.appendChild(actions);
 
-    // Add book
-    function openListBookForm(){
-      const formHtml = `
-        <h2 style="margin-top:0">List a New Book</h2>
-        <div>
-          <div class="form-row">
-            <div style="flex:1">
-              <label>Title</label>
-              <input id="inputTitle" class="input" />
-            </div>
-            <div style="width:180px">
-              <label>Exchange Type</label>
-              <select id="inputExchange" class="input">
-                <option>Swap</option>
-                <option>GiveAway</option>
-                <option>Sell</option>
-              </select>
-            </div>
-          </div>
+            card.appendChild(thumb);
+            card.appendChild(meta);
+            booksListEl.appendChild(card);
+        });
 
-          <div class="form-row">
-            <div style="flex:1">
-              <label>Author</label>
-              <input id="inputAuthor" class="input" />
-            </div>
-            <div style="width:120px">
-              <label>Rating</label>
-              <input id="inputRating" class="input" type="number" min="0" max="5" step="0.1" value="5.0" />
-            </div>
-          </div>
+        // Sidebar: show top 3 newest
+        sidebarListEl.innerHTML = '';
+        books.slice(0, 3).forEach(b => {
+            const el = document.createElement('div');
+            el.style.padding = '8px 0';
+            el.innerHTML =
+                `<strong style="display:block">${b.title}</strong>
+                <div class="small">${b.author} — ${b.exchangeType}</div>`;
+            sidebarListEl.appendChild(el);
+        });
+    }
 
-          <div>
-            <label>Description</label>
-            <textarea id="inputDescription"></textarea>
-          </div>
+    function openModal(html) {
+        modalContainer.style.display = 'block';
+        modalContainer.innerHTML = `
+            <div class="modal-backdrop" id="backdrop">
+                <div class="modal">${html}</div>
+            </div>
+        `;
+        document.getElementById('backdrop').addEventListener('click', (e) => {
+            if (e.target.id === 'backdrop') closeModal();
+        });
+    }
+    function closeModal() {
+        modalContainer.style.display = 'none';
+        modalContainer.innerHTML = '';
+    }
 
-          <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-            <button id="cancelAdd" class="link">Cancel</button>
-            <button id="submitAdd" class="btn">Add Book</button>
-          </div>
-        </div>
-      `;
-      openModal(formHtml);
+    // Add book
+    function openListBookForm() {
+        const formHtml = `
+            <h2 style="margin-top:0">List a New Book</h2>
+            <div>
+                <div class="form-row">
+                    <div style="flex:1">
+                        <label>Title</label>
+                        <input id="inputTitle" class="input" />
+                    </div>
+                    <div style="width:180px">
+                        <label>Exchange Type</label>
+                        <select id="inputExchange" class="input">
+                            <option>Swap</option>
+                            <option>GiveAway</option>
+                            <option>Sell</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div style="flex:1">
+                        <label>Author</label>
+                        <input id="inputAuthor" class="input" />
+                    </div>
+                    <div style="width:120px">
+                        <label>Rating</label>
+                        <input id="inputRating" class="input" type="number" min="0" max="5" step="0.1" value="5.0" />
+                    </div>
+                </div>
+                <div>
+                    <label>Description</label>
+                    <textarea id="inputDescription"></textarea>
+                </div>
+                <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+                    <button id="cancelAdd" class="link">Cancel</button>
+                    <button id="submitAdd" class="btn">Add Book</button>
+                </div>
+            </div>
+        `;
+        openModal(formHtml);
 
-      document.getElementById('cancelAdd').onclick = closeModal;
-      document.getElementById('submitAdd').onclick = () => {
-        const title = document.getElementById('inputTitle').value.trim();
-        const author = document.getElementById('inputAuthor').value.trim();
-        const exchangeType = document.getElementById('inputExchange').value;
-        const rating = parseFloat(document.getElementById('inputRating').value) || 5.0;
-        const description = document.getElementById('inputDescription').value.trim();
+        document.getElementById('cancelAdd').onclick = closeModal;
+        document.getElementById('submitAdd').onclick = async () => {
+            const title = document.getElementById('inputTitle').value.trim();
+            const author = document.getElementById('inputAuthor').value.trim();
+            const exchangeType = document.getElementById('inputExchange').value;
+            const rating = parseFloat(document.getElementById('inputRating').value) || 5.0;
+            const description = document.getElementById('inputDescription').value.trim();
 
-        if (!title || !author) {
-          alert('Please enter title and author.');
-          return;
-        }
+            if (!title || !author) {
+                alert('Please enter title and author.');
+                return;
+            }
 
-        const newBook = {
-          id: String(Date.now()),
-          title, author, exchangeType,
-          status: 'Available',
-          description,
-          owner: {
-            id: 'currentUser',
-            name: 'You',
-            rating,
-            location: userLocation || defaultLocation
-          }
-        };
+            const newBook = {
+                id: String(Date.now()),
+                title, author, exchangeType,
+                status: 'Available',
+                description,
+                owner: {
+                    id: 'currentUser',
+                    name: 'You',
+                    rating,
+                    location: userLocation || defaultLocation
+                }
+            };
 
-        books = [newBook, ...books];
+            await saveNewBook(newBook);
+            closeModal();
+        };
+    }
+
+    // Book details
+    function openBookDetails(book) {
+        const ownerLocText = book.owner && book.owner.location ?
+            `Location: ${book.owner.location.lat.toFixed(3)}, ${book.owner.location.lng.toFixed(3)}` : 'Location: unknown';
+
+        const distanceText = (userLocation && book.owner && book.owner.location) ?
+            `Distance: ${formatDistance(haversine(userLocation.lat, userLocation.lng, book.owner.location.lat, book.owner.location.lng))}` : '';
+
+        const html = `
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <h2 style="margin:0">${book.title}</h2>
+                <button id="closeDetail" class="link">Close</button>
+            </div>
+            <div class="small" style="margin-top:8px">${book.author} • ${book.exchangeType}</div>
+            <div style="margin-top:12px">${book.description || '<em>No description provided.</em>'}</div>
+            <div style="margin-top:12px">
+                <strong>Owner:</strong> ${book.owner.name} (${book.owner.rating})
+                <div class="small">${ownerLocText} ${distanceText ? ' · ' + distanceText : ''}</div>
+            </div>
+            <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+                <button id="contactOwner" class="btn">Contact Owner</button>
+            </div>
+        `;
+        openModal(html);
+
+        document.getElementById('closeDetail').onclick = closeModal;
+        document.getElementById('contactOwner').onclick = () => {
+            alert('Pretend this opens a chat / contact flow with ' + book.owner.name);
+        };
+    }
+
+    // Geolocation
+    function requestLocation() {
+        if (!navigator.geolocation) {
+            userLocation = defaultLocation;
+            locationStatusEl.textContent = 'Location not available (using default)';
+            renderBooks();
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                locationStatusEl.textContent = `Location set (${userLocation.lat.toFixed(3)}, ${userLocation.lng.toFixed(3)})`;
+                renderBooks();
+            },
+            err => {
+                console.warn('Geolocation error', err);
+                userLocation = defaultLocation;
+                locationStatusEl.textContent = 'Location blocked — using default';
+                renderBooks();
+            },
+            { timeout: 8000 }
+        );
+    }
+
+    // ----------------- Firebase Data Functions -----------------
+    async function loadBooks() {
+        // Get books from Firestore
+        let firestoreBooks = [];
+        try {
+            const snapshot = await getDocs(collection(db, "books"));
+            firestoreBooks = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (e) {
+            console.error("Firestore load error:", e);
+        }
+        // Combine mock and live
+        books = [...MOCK_BOOKS, ...firestoreBooks];
+        console.log("Loaded books:", books);
         renderBooks();
-        closeModal();
-      };
-    }
+    }
 
-    // Book details
-    function openBookDetails(book){
-      const ownerLocText = book.owner && book.owner.location ? 
-        `Location: ${book.owner.location.lat.toFixed(3)}, ${book.owner.location.lng.toFixed(3)}` : 'Location: unknown';
+    async function saveNewBook(book) {
+        try {
+            await addDoc(collection(db, "books"), {
+                title: book.title,
+                author: book.author,
+                exchangeType: book.exchangeType,
+                description: book.description,
+                rating: book.owner.rating,
+                status: "Available",
+                createdAt: serverTimestamp(),
+                owner: {
+                    id: book.owner.id,
+                    name: book.owner.name,
+                    rating: book.owner.rating,
+                    location: book.owner.location
+                }
+            });
+            alert("Book listed successfully!");
+            await loadBooks();
+        } catch (e) {
+            console.error("Error adding book:", e);
+            alert("Could not add book. Check console for details.");
+        }
+    }
 
-      const distanceText = (userLocation && book.owner && book.owner.location) ? 
-        `Distance: ${formatDistance(haversine(userLocation.lat, userLocation.lng, book.owner.location.lat, book.owner.location.lng))}` : '';
+    // Wire up UI
+    document.getElementById('btnListBook').addEventListener('click', openListBookForm);
+    searchEl.addEventListener('input', () => renderBooks());
+    exchangeTypeEl.addEventListener('change', () => renderBooks());
 
-      const html = `
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <h2 style="margin:0">${book.title}</h2>
-          <button id="closeDetail" class="link">Close</button>
-        </div>
-        <div class="small" style="margin-top:8px">${book.author} • ${book.exchangeType}</div>
-        <div style="margin-top:12px">${book.description || '<em>No description provided.</em>'}</div>
-        <div style="margin-top:12px">
-          <strong>Owner:</strong> ${book.owner.name} (${book.owner.rating})
-          <div class="small">${ownerLocText} ${distanceText ? ' · ' + distanceText : ''}</div>
-        </div>
-        <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
-          <button id="contactOwner" class="btn">Contact Owner</button>
-        </div>
-      `;
-      openModal(html);
+    // Initial page mount
+    requestLocation();
+    await loadBooks();
 
-      document.getElementById('closeDetail').onclick = closeModal;
-      document.getElementById('contactOwner').onclick = () => {
-        alert('Pretend this opens a chat / contact flow with ' + book.owner.name);
-      };
-    }
+</script>
 
-    // Geolocation
-    function requestLocation(){
-      if (!navigator.geolocation){
-        userLocation = defaultLocation;
-        locationStatusEl.textContent = 'Location not available (using default)';
-        renderBooks();
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          locationStatusEl.textContent = `Location set (${userLocation.lat.toFixed(3)}, ${userLocation.lng.toFixed(3)})`;
-          renderBooks();
-        },
-        err => {
-          console.warn('Geolocation error', err);
-          userLocation = defaultLocation;
-          locationStatusEl.textContent = 'Location blocked — using default';
-          renderBooks();
-        },
-        { timeout: 8000 }
-      );
-    }
-
-    // Wire up UI
-    document.getElementById('btnListBook').addEventListener('click', openListBookForm);
-    searchEl.addEventListener('input', () => renderBooks());
-    exchangeTypeEl.addEventListener('change', () => renderBooks());
-
-    // initial mount
-    requestLocation();
-    renderBooks();
-  </script>
 </body>
 </html>
