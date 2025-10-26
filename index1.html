@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Decentralized Book Exchange</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: '#fff7ed',
+            card: '#ffffff',
+            muted: '#6b7280',
+            accent: '#b45309',
+            'accent-hover': '#9a3412',
+          },
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', '"Helvetica Neue"', 'Arial'],
+          },
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-bg text-zinc-800">
+
+  <div id="app" class="max-w-6xl mx-auto px-5">
+    
+    <!-- Header (dynamically updated by JS) -->
+    <header id="header" class="flex items-center justify-between py-5 mb-4"></header>
+    
+    <main>
+      <!-- Page Containers -->
+      <div id="home-page" class="page"></div>
+      <div id="login-page" class="page hidden"></div>
+      <div id="signup-page" class="page hidden"></div>
+      <div id="profile-page" class="page hidden"></div>
+      <div id="loading-spinner" class="page hidden">
+        <div class="flex items-center justify-center h-64">
+          <div class="text-xl text-muted">Loading...</div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="mt-7 text-center text-sm text-muted pb-5">
+      Decentralized Book Exchange - HTML, CSS & JS Version
+    </footer>
+  </div>
+
+  <!-- Modal Container -->
+  <div id="modal-container" class="hidden" aria-hidden="true"></div>
+  
+  <script src="script.js"></script>
+</body>
+</html>
